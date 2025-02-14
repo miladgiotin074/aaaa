@@ -11,9 +11,11 @@ import AllowedCountryForAdd from './models/allowedCountryForAdd.model.js';
 import Account from './models/account.model.js';
 import User from './models/user.model.js';
 import Config from './models/config.model.js';
+import path from 'path';
 
 // Connect to MongoDB
 connectDB();
+const __dirname = path.resolve();
 
 const app = express();
 app.use(express.json());
@@ -325,6 +327,12 @@ bot.on('text', async (msg) => {
     if (user?.waitingForTransactionHash) {
         commands.handleTransactionHash(bot, msg);
     }
+});
+
+app.use(express.static(path.join(__dirname, "../frontend/dist")));
+
+app.get("*", (req, res) => {
+    res.sendFile(path.join(__dirname, "../frontend", "dist", "index.html"));
 });
 
 // Start Express server
