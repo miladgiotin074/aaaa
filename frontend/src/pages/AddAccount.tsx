@@ -149,19 +149,6 @@ function AddAccount() {
         );
     }
 
-    // return (
-    //     <TgPage back={false}>
-    //         <div className="fixed bottom-8 right-8">
-    //             <button
-    //                 onClick={() => handleLogOut()}
-    //                 className="bg-telegram-header text-white rounded-full p-4 shadow-lg transition-colors"
-    //             >
-    //                 <Plus className="w-6 h-6" />
-    //             </button>
-    //         </div>
-    //     </TgPage>
-    // );
-
     return (
         <TgPage back={false}>
             <div className="p-4">

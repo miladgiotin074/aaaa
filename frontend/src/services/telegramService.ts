@@ -1,9 +1,10 @@
 import { Api } from "telegram";
-import { computeCheck } from "telegram/Password";
+import { computeCheck as computePasswordSrpCheck } from "telegram/Password";
 import { useTelegramStore, initializeClient } from "@/stores/telegramStore";
 import { api } from "@/utils/api";
 import { TelegramClient } from "telegram";
 import { StringSession } from "telegram/sessions";
+import { UserPasswordAuthParams } from "telegram/client/auth";
 
 class TelegramService {
     async initialize() {
@@ -64,32 +65,49 @@ class TelegramService {
         }
     }
 
-    async checkPassword(password: string) {
+    async checkPassword(authParams: UserPasswordAuthParams) {
+        console.log("==> authParams", authParams);
+
         const client = await this.initialize();
         if (!client) {
             throw new Error('Telegram client initialization failed');
         }
         try {
-            // دریافت اطلاعات SRP از سرور
             const passwordSrpResult = await client.invoke(
                 new Api.account.GetPassword()
             );
 
-            // محاسبه پارامترهای امنیتی
-            const passwordSrpCheck = await computeCheck(
-                passwordSrpResult,
-                password
-            );
+            const password = authParams.password ? await authParams.password(passwordSrpResult.hint) : '';
 
-            // ارسال درخواست با پارامترهای محاسبه شده
-            const result = await client.invoke(
-                new Api.auth.CheckPassword({
-                    password: passwordSrpCheck,
-                })
-            );
+            if (password && password !== "") {
+                console.log("==> password", password);
+                const passwordSrpCheck = await computePasswordSrpCheck(
+                    passwordSrpResult,
+                    password
+                );
 
-            return result;
+                console.log("==> passwordSrpCheck", passwordSrpCheck);
+
+                // Ensure the passwordSrpCheck is in the correct format
+                const checkPasswordParams = new Api.InputCheckPasswordSRP({
+                    srpId: passwordSrpCheck.srpId,
+                    A: passwordSrpCheck.A,
+                    M1: passwordSrpCheck.M1,
+                });
+
+                console.log("==> checkPasswordParams", checkPasswordParams);
+
+                const { user } = (await client.invoke(
+                    new Api.auth.CheckPassword({
+                        password: checkPasswordParams,
+                    })
+                )) as Api.auth.Authorization;
+
+                console.log("==> user", user);
+                return user;
+            }
         } catch (error) {
+            console.log("==> error", error);
             throw new Error(this.formatError(error));
         }
     }

@@ -4,6 +4,7 @@ import { Api } from "telegram";
 import { getConfig } from '../config/config.js';
 import logger from '../config/logger.js';
 import Account from '../models/account.model.js';
+import { getServerAddress } from "./datacenters.js";
 
 class TelegramAccountManager {
     constructor(accountId) {
@@ -13,6 +14,7 @@ class TelegramAccountManager {
 
     async connect() {
         try {
+
             const account = await Account.findById(this.accountId);
             if (!account) {
                 throw new Error('Account not found');
@@ -31,6 +33,13 @@ class TelegramAccountManager {
                 }
             );
 
+            this.client.session.setDC(
+                this.client.session.dcId,
+                getServerAddress(this.client.session.dcId),
+                this.client.session.port
+            )
+            
+            console.log("==> this.client", this.client);
             await this.client.connect();
             return this.client;
         } catch (error) {

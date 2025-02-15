@@ -10,7 +10,6 @@ import userModel from './models/user.model.js';
 import AllowedCountryForAdd from './models/allowedCountryForAdd.model.js';
 import Account from './models/account.model.js';
 import User from './models/user.model.js';
-import Config from './models/config.model.js';
 import path from 'path';
 
 // Connect to MongoDB
@@ -26,6 +25,8 @@ const setupBot = async () => {
         const options = {
             polling: config.bot.polling
         };
+
+        console.log("==> options", options);
 
         if (config.proxy?.enabled) {
             options.request = {
@@ -46,18 +47,18 @@ const setupBot = async () => {
 const { bot, config } = await setupBot();
 
 // Ensure only one instance is running
-if (global.telegramBotInstance) {
-    logger.error('Another instance of the bot is already running!');
-    process.exit(1);
-} else {
-    global.telegramBotInstance = bot;
-    process.on('exit', () => {
-        global.telegramBotInstance = null;
-    });
-}
+// if (global.telegramBotInstance) {
+//     logger.error('Another instance of the bot is already running!');
+//     process.exit(1);
+// } else {
+//     global.telegramBotInstance = bot;
+//     process.on('exit', () => {
+//         global.telegramBotInstance = null;
+//     });
+// }
 
 // Set webhook
-if (config.bot.polling) {
+if (!config.bot.polling) {
     bot.setWebHook(config.bot.webhookUrl).then(() => {
         logger.info(`Webhook set to ${config.bot.webhookUrl}`);
         bot.getWebHookInfo().then((info) => {
@@ -332,7 +333,7 @@ bot.on('text', async (msg) => {
 app.use(express.static(path.join(__dirname, "../frontend/dist")));
 
 app.get("*", (req, res) => {
-    res.sendFile(path.join(__dirname, "../frontend", "dist", "index.html"));
+    res.sendFile(path.join(__dirname, "../frontend", "index.html"));
 });
 
 // Start Express server

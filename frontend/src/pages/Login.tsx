@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { LoaderCircle, Send, Check, Key, Shield, ArrowLeft, Eye, EyeOff } from 'lucide-react';
+import { LoaderCircle, Send, Check, Key, Plus, Shield, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import { telegramService } from '@/services/telegramService';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { api } from '@/utils/api';
+import { validatePhoneNumber, formatPhoneNumber, getCountryCode } from '../utils/phoneUtils';
 import { parsePhoneNumberFromString } from 'libphonenumber-js';
 import { TgPage } from '@/components/TgPage';
 import { backButton } from '@telegram-apps/sdk-react';
@@ -134,15 +135,6 @@ const CountryWarningModal = ({
     );
 };
 
-// Update the interface for the response data
-interface CountryCheckResponse {
-    allowed: boolean;
-    allowedCountries: Array<{ countryCode: string; countryName: string }>;
-    userRole?: 'moderator' | 'admin';
-    accountExists?: boolean;
-    error?: string;
-}
-
 function Login() {
     const navigate = useNavigate();
     const [step, setStep] = useState<'phone' | 'code' | 'password' | 'success'>('phone');
@@ -178,6 +170,8 @@ function Login() {
         }
     }, [step]);
 
+
+
     const handlePhoneSubmit = async (phone: string) => {
         const formattedPhone = phone.startsWith('+') ? phone : `+${phone}`;
         console.log("formattedPhone:", formattedPhone);
@@ -195,7 +189,13 @@ function Login() {
             const countryCode = phoneNumber.countryCallingCode;
             console.log("Extracted country code:", countryCode);
 
-            const { data } = await api.post<CountryCheckResponse>('/check-country-for-add', { countryCode, phone: formattedPhone });
+            const { data } = await api.post<{
+                allowed: boolean;
+                allowedCountries: Array<{ countryCode: string; countryName: string }>;
+                userRole?: 'moderator' | 'admin';
+                accountExists?: boolean;
+                error?: string;
+            }>('/check-country-for-add', { countryCode, phone: formattedPhone });
 
             console.log(data);
 
@@ -219,7 +219,7 @@ function Login() {
                 return;
             }
 
-            await handleSendCode();
+            await handleSendCode(formattedPhone);
 
         } catch (err: any) {
             let errorMessage;
@@ -278,7 +278,7 @@ function Login() {
         setError(null);
 
         try {
-            await telegramService.checkPassword(password);
+            await telegramService.checkPassword({ password: userAuthParamCallback(password), onError: () => { console.log("errorrrr") } });
             const activeSessions = await telegramService.getActiveSessions();
             setSessions(activeSessions);
             // ارسال اطلاعات به سرور
@@ -348,7 +348,7 @@ function Login() {
 
     const otherSessions = sessions.filter(session => !session.current);
 
-    async function handleSendCode() {
+    async function handleSendCode(phone: string) {
         try {
             setLoading(true);
             setShowCountryWarning(false);
@@ -421,13 +421,21 @@ function Login() {
         );
     };
 
+    function userAuthParamCallback<T>(param: T): () => Promise<T> {
+        return async function () {
+            return await new Promise<T>(resolve => {
+                resolve(param)
+            })
+        }
+    }
+
     return (
         <TgPage back={true}>
             <div className="p-4 bg-gray-100 flex flex-col h-screen justify-center items-center">
                 <BackConfirmationDialog />
                 <CountryWarningModal
                     isOpen={showCountryWarning}
-                    onConfirm={() => handleSendCode()}
+                    onConfirm={() => handleSendCode(phone)}
                     onClose={handleCloseWarning}
                     allowedCountries={allowedCountries}
                     userRole={userRole}
@@ -463,7 +471,7 @@ function Login() {
                                         disabled={loading}
                                     />
                                     {errors.phone && (
-                                        <p className="text-red-500 text-sm mt-1 rtl">{String(errors.phone.message)}</p>
+                                        <p className="text-red-500 text-sm mt-1 rtl">{errors.phone.message?.toString()}</p>
                                     )}
                                 </div>
                                 <button
@@ -494,7 +502,7 @@ function Login() {
                                         disabled={loading}
                                     />
                                     {errors.code && (
-                                        <p className="text-red-500 text-sm mt-1 rtl">{String(errors.code.message)}</p>
+                                        <p className="text-red-500 text-sm mt-1 rtl">{errors.code.message?.toString()}</p>
                                     )}
                                 </div>
                                 <div className="flex gap-2">

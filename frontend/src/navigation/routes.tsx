@@ -1,5 +1,6 @@
 import AddAccount from '@/pages/AddAccount';
 import Login from '@/pages/Login';
+import test from '@/pages/test';
 import type { ComponentType, JSX } from 'react';
 
 
@@ -12,5 +13,5 @@ interface Route {
 
 export const routes: Route[] = [
     { path: '/addAccount', Component: AddAccount },
-    { path: '/login', Component: Login },
+    { path: '/login', Component: Login }
 ];
