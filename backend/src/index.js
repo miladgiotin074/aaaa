@@ -14,7 +14,7 @@ import path from 'path';
 
 // Connect to MongoDB
 connectDB();
-// const __dirname = path.resolve();
+const __dirname = path.resolve();
 
 const app = express();
 app.use(express.json());
