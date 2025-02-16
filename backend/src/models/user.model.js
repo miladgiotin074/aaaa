@@ -67,6 +67,10 @@ const userSchema = new mongoose.Schema({
         type: Boolean,
         default: false
     },
+    waitingForBankGatewayAmount: {
+        type: Boolean,
+        default: false
+    },
     isAuthenticated: {
         type: Boolean,
         default: false

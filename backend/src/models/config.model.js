@@ -60,7 +60,15 @@ const configSchema = new mongoose.Schema({
             },
             enabled: {
                 type: Boolean,
-                default: false
+                default: true
+            },
+            minAmount: {
+                type: Number,
+                default: parseInt(process.env.BANK_GATEWAY_MIN_AMOUNT)
+            },
+            maxAmountWithoutAuth: {
+                type: Number,
+                default: parseInt(process.env.BANK_GATEWAY_MAX_AMOUNT_WITHOUT_AUTH)
             }
         },
         crypto: {

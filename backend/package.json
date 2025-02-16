@@ -11,6 +11,7 @@
     },
     "dependencies": {
         "@telegram-apps/init-data-node": "^2.0.2",
+        "axios": "^1.7.9",
         "dotenv": "^16.3.1",
         "express": "^4.18.2",
         "libphonenumber-js": "^1.11.19",
@@ -19,7 +20,8 @@
         "node-telegram-bot-api": "^0.64.0",
         "number-bot": "file:..",
         "telegram": "^2.26.22",
-        "winston": "^3.11.0"
+        "winston": "^3.11.0",
+        "zarinpal-pay": "^2.0.1"
     },
     "devDependencies": {
         "jest": "^29.7.0",

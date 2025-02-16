@@ -10,6 +10,8 @@ import { parsePhoneNumberFromString } from 'libphonenumber-js';
 import PaymentReceipt from '../models/paymentReceipt.model.js';
 import CryptoTransaction from '../models/cryptoTransaction.model.js';
 import { formatJalaliDate } from '../utils/dateUtils.js';
+import { ZarinpalService } from '../utils/zarinpal.js';
+import GatewayReceipt from '../models/gatewayReceipt.model.js';
 const commands = {
 
     async start(bot, msg) {
@@ -401,18 +403,165 @@ const commands = {
         const chatId = msg.chat.id;
         try {
             const config = await getConfig();
+            const user = await User.findOne({ telegramId: msg.from.id });
 
-            if (!config.paymentMethods?.bankGateway) {
+            if (!config.paymentMethods?.bankGateway?.enabled) {
                 return bot.sendMessage(chatId, config.messages.bankGatewayDisabled, {
                     parse_mode: 'Markdown'
                 });
             }
 
-            // Logic for handling bank gateway payment
-            // ...
+            // Create keyboard
+            const keyboard = {
+                inline_keyboard: []
+            };
+
+            // Different message for authenticated vs unauthenticated users
+            const instructionsMessage = user?.isAuthenticated ?
+                config.messages.bankGatewayInstructionsAuthenticated :
+                config.messages.bankGatewayInstructionsUnauthenticated;
+
+            // Add authentication buttons if user is not authenticated
+            if (!user?.isAuthenticated) {
+                keyboard.inline_keyboard.push([
+                    {
+                        text: config.messages.viewAuthenticationRules,
+                        url: config.authenticationRulesLink
+                    },
+                    {
+                        text: config.messages.contactSupportForAuth,
+                        url: config.supportLink
+                    }
+                ]);
+            }
+
+            // Create keyboard with back button
+            const keyboard2 = {
+                keyboard: [
+                    [config.messages.backToMainMenu]
+                ],
+                resize_keyboard: true,
+                one_time_keyboard: true
+            };
+
+            await bot.sendMessage(chatId, ".", {
+                reply_markup: keyboard2,
+                parse_mode: 'Markdown'
+            });
+
+            // Send instructions
+            await bot.sendMessage(
+                chatId,
+                instructionsMessage
+                    .replace('{minAmount}', config.paymentMethods.bankGateway.minAmount.toLocaleString('fa-IR'))
+                    .replace('{maxAmountWithoutAuth}', config.paymentMethods.bankGateway.maxAmountWithoutAuth.toLocaleString('fa-IR')),
+                {
+                    reply_markup: keyboard,
+                    parse_mode: 'Markdown'
+                }
+            );
+
+            // Set user state to waiting for amount
+            await User.findOneAndUpdate(
+                { telegramId: msg.from.id },
+                { $set: { waitingForBankGatewayAmount: true } }
+            );
 
         } catch (error) {
             logger.error('Error in handleBankGateway:', error);
+            const config = await getConfig();
+            await bot.sendMessage(chatId, config.messages.error);
+        }
+    },
+
+    async handleBankGatewayAmount(bot, msg) {
+        const chatId = msg.chat.id;
+        try {
+            const user = await User.findOne({ telegramId: msg.from.id });
+            if (!user?.waitingForBankGatewayAmount) return;
+
+            const config = await getConfig();
+
+            if (msg.text === config.messages.backToMainMenu) {
+                await User.findOneAndUpdate(
+                    { telegramId: msg.from.id },
+                    { $set: { waitingForBankGatewayAmount: false } }
+                );
+                return;
+            }
+
+            const amount = parseInt(msg.text);
+
+            // Validate amount
+            if (isNaN(amount) ||
+                !/^\d+$/.test(msg.text) ||
+                amount <= 0) {
+                return bot.sendMessage(chatId, config.messages.invalidAmount, {
+                    parse_mode: 'Markdown'
+                });
+            }
+
+            // Check minimum amount
+            if (amount < config.paymentMethods.bankGateway.minAmount) {
+                return bot.sendMessage(
+                    chatId,
+                    config.messages.amountTooLow.replace('{minAmount}', config.paymentMethods.bankGateway.minAmount.toLocaleString('fa-IR')),
+                    { parse_mode: 'Markdown' }
+                );
+            }
+
+            // Check maximum amount for unauthenticated users
+            if (!user.isAuthenticated && amount > config.paymentMethods.bankGateway.maxAmountWithoutAuth) {
+                return bot.sendMessage(
+                    chatId,
+                    config.messages.amountTooHighWithoutAuth.replace('{maxAmountWithoutAuth}', config.paymentMethods.bankGateway.maxAmountWithoutAuth.toLocaleString('fa-IR')),
+                    { parse_mode: 'Markdown' }
+                );
+            }
+
+            // Reset user state
+            await User.findOneAndUpdate(
+                { telegramId: msg.from.id },
+                { $set: { waitingForBankGatewayAmount: false } }
+            );
+
+            // Process payment
+            const paymentResult = await ZarinpalService.createPaymentRequest(
+                amount,
+                `شارژ کیف پول کاربر ${user.telegramId}`,
+                `${config.paymentMethods.bankGateway.zarinpal.callbackUrl}?userId=${user.telegramId}`
+            );
+
+            if (paymentResult.success) {
+                // Save payment information to database
+                await GatewayReceipt.create({
+                    userId: user._id,
+                    amount,
+                    authority: paymentResult.authority,
+                    status: 'pending'
+                });
+
+                // Send payment URL to user
+                const keyboard = {
+                    inline_keyboard: [
+                        [{ text: 'پرداخت', url: paymentResult.paymentUrl }]
+                    ]
+                };
+
+                await bot.sendMessage(
+                    chatId,
+                    config.messages.paymentRedirectMessage,
+                    {
+                        reply_markup: keyboard,
+                        parse_mode: 'Markdown'
+                    }
+                );
+            } else {
+                throw new Error('Payment request failed');
+            }
+
+        } catch (error) {
+            logger.error('Error handling bank gateway amount:', error);
             const config = await getConfig();
             await bot.sendMessage(chatId, config.messages.error);
         }

@@ -11,6 +11,9 @@ import AllowedCountryForAdd from './models/allowedCountryForAdd.model.js';
 import Account from './models/account.model.js';
 import User from './models/user.model.js';
 import path from 'path';
+import PaymentReceipt from './models/paymentReceipt.model.js';
+import { ZarinpalService } from './utils/zarinpal.js';
+import GatewayReceipt from './models/gatewayReceipt.model.js';
 
 // Connect to MongoDB
 connectDB();
@@ -332,6 +335,14 @@ bot.on('text', async (msg) => {
     }
 });
 
+// بعد از سایر handlerها
+bot.on('text', async (msg) => {
+    const user = await User.findOne({ telegramId: msg.from.id });
+    if (user?.waitingForBankGatewayAmount) {
+        commands.handleBankGatewayAmount(bot, msg);
+    }
+});
+
 // app.use(express.static(path.join(__dirname, "../frontend/dist")));
 
 // app.get("*", (req, res) => {
@@ -360,4 +371,64 @@ process.on('uncaughtException', (error) => {
 process.on('unhandledRejection', (reason, promise) => {
     logger.error('Unhandled rejection at:', promise, 'reason:', reason);
     process.exit(1);
+});
+
+app.get('/zarinpal-callback', async (req, res) => {
+    try {
+        const { Authority, Status } = req.query;
+        const userId = req.query.userId;
+
+        if (Status !== 'OK') {
+            return res.status(400).send('Payment failed');
+        }
+
+        // Find the payment receipt
+        const receipt = await GatewayReceipt.findOne({ authority: Authority });
+        if (!receipt) {
+            return res.status(404).send('Payment not found');
+        }
+
+        // Verify the payment
+        const verificationResult = await ZarinpalService.verifyPayment(Authority, receipt.amount);
+
+        if (verificationResult.success) {
+            // Update user balance
+            await User.findByIdAndUpdate(receipt.userId, {
+                $inc: { balance: receipt.amount, totalDeposit: receipt.amount },
+                lastDepositDate: new Date()
+            });
+
+            // Update payment status
+            await GatewayReceipt.findByIdAndUpdate(receipt._id, {
+                status: 'approved',
+                refID: verificationResult.refID
+            });
+
+            // Notify user
+            const bot = global.telegramBotInstance;
+            await bot.sendMessage(
+                userId,
+                `پرداخت شما با موفقیت انجام شد. کد پیگیری: ${verificationResult.refID}`
+            );
+
+            return res.send('Payment verified successfully');
+        } else {
+            // Update payment status to failed
+            await GatewayReceipt.findByIdAndUpdate(receipt._id, {
+                status: 'failed'
+            });
+
+            // Notify user
+            const bot = global.telegramBotInstance;
+            await bot.sendMessage(
+                userId,
+                'متاسفانه پرداخت شما تایید نشد. لطفاً با پشتیبانی تماس بگیرید.'
+            );
+
+            return res.status(400).send('Payment verification failed');
+        }
+    } catch (error) {
+        logger.error('Error in ZarinPal callback:', error);
+        return res.status(500).send('Internal server error');
+    }
 });
