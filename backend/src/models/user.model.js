@@ -66,6 +66,10 @@ const userSchema = new mongoose.Schema({
     waitingForTransactionHash: {
         type: Boolean,
         default: false
+    },
+    isAuthenticated: {
+        type: Boolean,
+        default: false
     }
 }, {
     timestamps: true,

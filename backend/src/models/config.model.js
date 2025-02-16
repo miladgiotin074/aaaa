@@ -31,10 +31,37 @@ const configSchema = new mongoose.Schema({
         required: true,
         default: process.env.MAX_CODE_REQUESTS
     },
+    authenticationRulesLink: {
+        type: String,
+        required: true,
+        default: process.env.AUTHENTICATION_RULES_LINK
+    },
     paymentMethods: {
         bankGateway: {
-            type: Boolean,
-            default: false
+            zarinpal: {
+                enabled: {
+                    type: Boolean,
+                    default: false
+                },
+                merchantId: {
+                    type: String,
+                    required: true,
+                    default: process.env.ZARINPAL_MERCHANT_ID
+                },
+                sandbox: {
+                    type: Boolean,
+                    default: process.env.ZARINPAL_SANDBOX
+                },
+                callbackUrl: {
+                    type: String,
+                    required: true,
+                    default: process.env.ZARINPAL_CALLBACK_URL
+                }
+            },
+            enabled: {
+                type: Boolean,
+                default: false
+            }
         },
         crypto: {
             walletAddress: {

@@ -51,7 +51,8 @@ const getConfig = async () => {
             telegramApi: {
                 apiId: config.telegramApi?.apiId || parseInt(process.env.API_ID),
                 apiHash: config.telegramApi?.apiHash || process.env.API_HASH
-            }
+            },
+            authenticationRulesLink: config.authenticationRulesLink || process.env.AUTHENTICATION_RULES_LINK
         };
     } catch (error) {
         logger.error('Error getting config:', error);

@@ -512,11 +512,40 @@ const commands = {
         const chatId = msg.chat.id;
         try {
             const config = await getConfig();
+            const user = await User.findOne({ telegramId: msg.from.id });
 
+            // Rest of the existing card to card logic...
             if (!config.paymentMethods?.cardToCard?.enabled) {
                 return bot.sendMessage(chatId, config.messages.cardToCardDisabled, {
                     parse_mode: 'Markdown'
                 });
+            }
+
+            // Check if user is authenticated
+            if (!user?.isAuthenticated) {
+                const keyboard = {
+                    inline_keyboard: [
+                        [
+                            {
+                                text: config.messages.viewAuthenticationRules,
+                                url: config.authenticationRulesLink
+                            },
+                            {
+                                text: config.messages.contactSupportForAuth,
+                                url: config.supportLink
+                            }
+                        ]
+                    ]
+                };
+
+                return bot.sendMessage(
+                    chatId,
+                    config.messages.authenticationRequired,
+                    {
+                        reply_markup: keyboard,
+                        parse_mode: 'Markdown'
+                    }
+                );
             }
 
             // Create keyboard with back button
