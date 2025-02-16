@@ -104,7 +104,9 @@ bot.onText(new RegExp(config.messages.buyAccount), (msg) => commands.handleBuyAc
 
 // Callback query handler
 bot.on('callback_query', async (query) => {
-    if (query.data.startsWith('select_country_')) {
+    if (query.data.startsWith('account_details_')) {
+        await callbacks.account_details(bot, query);
+    } else if (query.data.startsWith('select_country_')) {
         await callbacks.select_country(bot, query);
     } else if (query.data.startsWith('confirm_purchase_')) {
         await callbacks.confirm_purchase(bot, query);
@@ -330,11 +332,11 @@ bot.on('text', async (msg) => {
     }
 });
 
-app.use(express.static(path.join(__dirname, "../frontend/dist")));
+// app.use(express.static(path.join(__dirname, "../frontend/dist")));
 
-app.get("*", (req, res) => {
-    res.sendFile(path.join(__dirname, "../frontend", "index.html"));
-});
+// app.get("*", (req, res) => {
+//     res.sendFile(path.join(__dirname, "../frontend", "index.html"));
+// });
 
 // Start Express server
 app.listen(config.server.port, () => {

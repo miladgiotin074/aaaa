@@ -8,6 +8,7 @@ import { parsePhoneNumberFromString } from 'libphonenumber-js';
 import User from '../models/user.model.js';
 import { TelegramAccountManager } from '../utils/telegramUtils.js';
 import { message } from 'telegram/client/index.js';
+import { formatJalaliDate } from '../utils/dateUtils.js';
 
 const callbacks = {
     async check_membership(bot, query) {
@@ -524,6 +525,82 @@ const callbacks = {
             const config = await getConfig();
             await bot.answerCallbackQuery(query.id, {
                 text: config.messages.logoutError,
+                show_alert: true
+            });
+        }
+    },
+
+    async account_details(bot, query) {
+        try {
+            const config = await getConfig();
+            const accountId = query.data.split('_')[2];
+
+            // Find the account
+            const account = await Account.findById(accountId);
+            if (!account) {
+                return bot.answerCallbackQuery(query.id, {
+                    text: config.messages.accountNotFound,
+                    show_alert: true
+                });
+            }
+
+            // Check if the account belongs to the user
+            const user = await User.findOne({ telegramId: query.from.id });
+            if (account.soldTo.toString() !== user._id.toString()) {
+                return bot.answerCallbackQuery(query.id, {
+                    text: config.messages.accountNotSold,
+                    show_alert: true
+                });
+            }
+
+            // Create message
+            const messageTemplate = account.password ?
+                config.messages.accountDetails :
+                config.messages.accountDetailsNoPassword;
+
+            console.log(account.phone);
+            console.log(account.password);
+            console.log(account.soldAt);
+            console.log(formatJalaliDate(account.soldAt));
+
+            console.log(messageTemplate);
+
+            const message = messageTemplate
+                .replace('{phoneNumber}', account.phone)
+                .replace('{purchaseDate}', formatJalaliDate(account.soldAt))
+                .replace('{password}', account.password || 'ندارد');
+
+            console.log(message);
+
+            // Create inline keyboard
+            const keyboard = {
+                inline_keyboard: [
+                    [
+                        {
+                            text: config.messages.getCodeButton,
+                            callback_data: `get_code_${account._id}`
+                        },
+                        {
+                            text: config.messages.logoutButton,
+                            callback_data: `logout_account_${account._id}`
+                        }
+                    ]
+                ]
+            };
+
+            // Edit the message
+            await bot.editMessageText(message, {
+                chat_id: query.message.chat.id,
+                message_id: query.message.message_id,
+                reply_markup: keyboard,
+                parse_mode: 'Markdown'
+            });
+
+        } catch (error) {
+            logger.error('Error in account_details callback:', error);
+            const config = await getConfig();
+            await bot.answerCallbackQuery(query.id, {
+                text: config.messages.error,
                 show_alert: true
             });
         }

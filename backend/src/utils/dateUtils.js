@@ -4,7 +4,7 @@ import 'moment-timezone';
 export function formatJalaliDate(date) {
     if (date) {
         const dateInTehran = moment.utc(date).tz('Asia/Tehran');
-        const formattedDate = dateInTehran.format('jYYYY/jMM/jDD');
+        const formattedDate = dateInTehran.format('jYYYY/jMM/jDD HH:mm');
         return convertToPersianNumbers(formattedDate);
     } else {
         return null;
