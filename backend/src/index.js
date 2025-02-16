@@ -47,15 +47,15 @@ const setupBot = async () => {
 const { bot, config } = await setupBot();
 
 // Ensure only one instance is running
-// if (global.telegramBotInstance) {
-//     logger.error('Another instance of the bot is already running!');
-//     process.exit(1);
-// } else {
-//     global.telegramBotInstance = bot;
-//     process.on('exit', () => {
-//         global.telegramBotInstance = null;
-//     });
-// }
+if (global.telegramBotInstance) {
+    logger.error('Another instance of the bot is already running!');
+    process.exit(1);
+} else {
+    global.telegramBotInstance = bot;
+    process.on('exit', () => {
+        global.telegramBotInstance = null;
+    });
+}
 
 // Set webhook
 if (!config.bot.polling) {
