@@ -2,7 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App';
-import { isTMA, postEvent} from '@telegram-apps/bridge';
+import { isTMA, postEvent } from '@telegram-apps/bridge';
 import { backButton, init, retrieveLaunchParams } from '@telegram-apps/sdk-react';
 
 try {

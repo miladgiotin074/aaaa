@@ -83,3 +83,19 @@
 .rtl * {
     unicode-bidi: isolate;
 }
+
+/* اضافه کردن استایل‌های مربوط به input از input.css */
+/* حذف آیکون چشم پیش‌فرض در مرورگرهای مختلف */
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear,
+input[type="password"]::-webkit-caps-lock-indicator,
+input[type="password"]::-webkit-credentials-auto-fill-button {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}

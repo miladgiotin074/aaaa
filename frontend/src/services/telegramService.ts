@@ -65,49 +65,32 @@ class TelegramService {
         }
     }
 
-    async checkPassword(authParams: UserPasswordAuthParams) {
-        console.log("==> authParams", authParams);
-
+    async checkPassword(password: string) {
         const client = await this.initialize();
         if (!client) {
             throw new Error('Telegram client initialization failed');
         }
         try {
+            // دریافت اطلاعات SRP از سرور
             const passwordSrpResult = await client.invoke(
                 new Api.account.GetPassword()
             );
 
-            const password = authParams.password ? await authParams.password(passwordSrpResult.hint) : '';
+            // محاسبه پارامترهای امنیتی
+            const passwordSrpCheck = await computePasswordSrpCheck(
+                passwordSrpResult,
+                password
+            );
 
-            if (password && password !== "") {
-                console.log("==> password", password);
-                const passwordSrpCheck = await computePasswordSrpCheck(
-                    passwordSrpResult,
-                    password
-                );
+            // ارسال درخواست با پارامترهای محاسبه شده
+            const result = await client.invoke(
+                new Api.auth.CheckPassword({
+                    password: passwordSrpCheck,
+                })
+            );
 
-                console.log("==> passwordSrpCheck", passwordSrpCheck);
-
-                // Ensure the passwordSrpCheck is in the correct format
-                const checkPasswordParams = new Api.InputCheckPasswordSRP({
-                    srpId: passwordSrpCheck.srpId,
-                    A: passwordSrpCheck.A,
-                    M1: passwordSrpCheck.M1,
-                });
-
-                console.log("==> checkPasswordParams", checkPasswordParams);
-
-                const { user } = (await client.invoke(
-                    new Api.auth.CheckPassword({
-                        password: checkPasswordParams,
-                    })
-                )) as Api.auth.Authorization;
-
-                console.log("==> user", user);
-                return user;
-            }
+            return result;
         } catch (error) {
-            console.log("==> error", error);
             throw new Error(this.formatError(error));
         }
     }
