@@ -11,13 +11,16 @@ import AllowedCountryForAdd from './models/allowedCountryForAdd.model.js';
 import Account from './models/account.model.js';
 import User from './models/user.model.js';
 import path from 'path';
-import PaymentReceipt from './models/paymentReceipt.model.js';
 import { ZarinpalService } from './utils/zarinpal.js';
 import GatewayReceipt from './models/gatewayReceipt.model.js';
+import { formatJalaliDate } from './utils/dateUtils.js';
+import { fileURLToPath } from 'url';
+import fs from 'fs';
 
 // Connect to MongoDB
 connectDB();
-const __dirname = path.resolve();
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const __dirnameVite = path.resolve();
 
 const app = express();
 app.use(express.json());
@@ -343,11 +346,11 @@ bot.on('text', async (msg) => {
     }
 });
 
-// app.use(express.static(path.join(__dirname, "../frontend/dist")));
+app.use(express.static(path.join(__dirnameVite, "../frontend/dist")));
 
-// app.get("*", (req, res) => {
-//     res.sendFile(path.join(__dirname, "../frontend", "index.html"));
-// });
+app.get("*", (req, res) => {
+    res.sendFile(path.join(__dirnameVite, "../frontend", "index.html"));
+});
 
 // Start Express server
 app.listen(config.server.port, () => {
@@ -379,13 +382,18 @@ app.get('/zarinpal-callback', async (req, res) => {
         const userId = req.query.userId;
 
         if (Status !== 'OK') {
-            return res.status(400).send('Payment failed');
+            // Render failed page
+            const failedPage = path.join(__dirname, 'views/paymentFailed.html');
+            const html = await fs.promises.readFile(failedPage, 'utf8');
+            return res.status(400).send(html);
         }
 
         // Find the payment receipt
         const receipt = await GatewayReceipt.findOne({ authority: Authority });
         if (!receipt) {
-            return res.status(404).send('Payment not found');
+            const failedPage = path.join(__dirname, 'views/paymentFailed.html');
+            const html = await fs.promises.readFile(failedPage, 'utf8');
+            return res.status(404).send(html);
         }
 
         // Verify the payment
@@ -406,12 +414,22 @@ app.get('/zarinpal-callback', async (req, res) => {
 
             // Notify user
             const bot = global.telegramBotInstance;
+            const config = await getConfig();
             await bot.sendMessage(
                 userId,
-                `پرداخت شما با موفقیت انجام شد. کد پیگیری: ${verificationResult.refID}`
+                config.messages.paymentSuccess
+                    .replace('{refID}', verificationResult.refID)
+                    .replace('{date}', formatJalaliDate(new Date())),
+                { parse_mode: 'Markdown' }
             );
 
-            return res.send('Payment verified successfully');
+            // Render success page
+            const successPage = path.join(__dirname, 'views/paymentSuccess.html');
+            const html = await fs.promises.readFile(successPage, 'utf8');
+            const renderedHtml = html
+                .replace('{{refID}}', verificationResult.refID)
+                .replace('{{date}}', formatJalaliDate(new Date()));
+            return res.send(renderedHtml);
         } else {
             // Update payment status to failed
             await GatewayReceipt.findByIdAndUpdate(receipt._id, {
@@ -425,10 +443,15 @@ app.get('/zarinpal-callback', async (req, res) => {
                 'متاسفانه پرداخت شما تایید نشد. لطفاً با پشتیبانی تماس بگیرید.'
             );
 
-            return res.status(400).send('Payment verification failed');
+            // Render failed page
+            const failedPage = path.join(__dirname, 'views/paymentFailed.html');
+            const html = await fs.promises.readFile(failedPage, 'utf8');
+            return res.status(400).send(html);
         }
     } catch (error) {
         logger.error('Error in ZarinPal callback:', error);
-        return res.status(500).send('Internal server error');
+        const failedPage = path.join(__dirname, 'views/paymentFailed.html');
+        const html = await fs.promises.readFile(failedPage, 'utf8');
+        return res.status(500).send(html);
     }
 });

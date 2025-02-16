@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تایید پرداخت</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .container {
+            background-color: #fff;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            padding: 2rem;
+            max-width: 500px;
+            width: 100%;
+            text-align: center;
+        }
+
+        .success-icon {
+            color: #4CAF50;
+            font-size: 4rem;
+            margin-bottom: 1rem;
+        }
+
+        h1 {
+            color: #4CAF50;
+            margin-bottom: 1.5rem;
+        }
+
+        .details {
+            background-color: #f9f9f9;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-top: 1.5rem;
+        }
+
+        .details p {
+            margin: 0.5rem 0;
+            color: #333;
+        }
+
+        .ref-id {
+            color: #2196F3;
+            font-weight: bold;
+        }
+
+        .date {
+            color: #666;
+        }
+
+        .message {
+            margin-top: 1.5rem;
+            color: #666;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="success-icon">✓</div>
+        <h1>پرداخت موفقیت‌آمیز بود</h1>
+        <div class="details">
+            <p>شماره پیگیری: <span class="ref-id">{{refID}}</span></p>
+            <p>تاریخ پرداخت: <span class="date">{{date}}</span></p>
+        </div>
+        <div class="message">
+            مبلغ پرداختی با موفقیت به حساب شما واریز شد. می‌توانید از طریق ربات از موجودی خود استفاده کنید.
+        </div>
+    </div>
+</body>
+</html> 

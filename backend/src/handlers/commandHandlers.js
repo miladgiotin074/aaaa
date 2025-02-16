@@ -525,6 +525,13 @@ const commands = {
                 { $set: { waitingForBankGatewayAmount: false } }
             );
 
+            // Send processing message
+            const processingMessage = await bot.sendMessage(
+                chatId,
+                config.messages.paymentProcessing,
+                { parse_mode: 'Markdown' }
+            );
+
             // Process payment
             const paymentResult = await ZarinpalService.createPaymentRequest(
                 amount,
@@ -541,22 +548,32 @@ const commands = {
                     status: 'pending'
                 });
 
-                // Send payment URL to user
+                // Edit the processing message with payment URL
                 const keyboard = {
                     inline_keyboard: [
-                        [{ text: 'پرداخت', url: paymentResult.paymentUrl }]
+                        [{ text: '💳 پرداخت', url: paymentResult.paymentUrl }]
                     ]
                 };
 
-                await bot.sendMessage(
-                    chatId,
+                await bot.editMessageText(
                     config.messages.paymentRedirectMessage,
                     {
+                        chat_id: chatId,
+                        message_id: processingMessage.message_id,
                         reply_markup: keyboard,
                         parse_mode: 'Markdown'
                     }
                 );
             } else {
+                // Edit the processing message with error
+                await bot.editMessageText(
+                    config.messages.paymentError,
+                    {
+                        chat_id: chatId,
+                        message_id: processingMessage.message_id,
+                        parse_mode: 'Markdown'
+                    }
+                );
                 throw new Error('Payment request failed');
             }
 

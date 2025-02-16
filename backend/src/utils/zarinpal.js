@@ -8,7 +8,7 @@ export const ZarinpalService = {
             const config = await getConfig();
             const zarinpal = new ZarinpalPayment(
                 config.paymentMethods.bankGateway.zarinpal.merchantId,
-                { isSandbox: config.paymentMethods.bankGateway.zarinpal.sandbox }
+                { isSandbox: config.paymentMethods.bankGateway.zarinpal.sandbox , isToman:true}
             );
 
             const paymentRequest = await zarinpal.create({
