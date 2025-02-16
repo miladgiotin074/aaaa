@@ -10,7 +10,7 @@ import userModel from './models/user.model.js';
 import AllowedCountryForAdd from './models/allowedCountryForAdd.model.js';
 import Account from './models/account.model.js';
 import User from './models/user.model.js';
-// import path from 'path';
+import path from 'path';
 
 // Connect to MongoDB
 connectDB();
@@ -330,11 +330,11 @@ bot.on('text', async (msg) => {
     }
 });
 
-// app.use(express.static(path.join(__dirname, "../frontend/dist")));
+app.use(express.static(path.join(__dirname, "../frontend/dist")));
 
-// app.get("*", (req, res) => {
-//     res.sendFile(path.join(__dirname, "../frontend", "index.html"));
-// });
+app.get("*", (req, res) => {
+    res.sendFile(path.join(__dirname, "../frontend", "index.html"));
+});
 
 // Start Express server
 app.listen(config.server.port, () => {
