@@ -16,7 +16,7 @@ export default function AdminBottomNav({ activeTab, setActiveTab }: AdminBottomN
     ];
 
     return (
-        <div className="fixed bottom-0 left-0 right-0 bg-white shadow-lg">
+        <div className="fixed bottom-0 left-0 right-0 bg-white shadow-[0_-2px_10px_rgba(0,0,0,0.1)]">
             <div className="flex justify-around items-center p-2">
                 {navItems.map((item) => (
                     <button
