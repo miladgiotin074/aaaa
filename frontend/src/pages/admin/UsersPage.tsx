@@ -169,7 +169,7 @@ export default function UsersPage() {
                                                     <span className="text-orange-300 text-sm">⚠️</span>
                                                 )}
                                             </div>
-                                            <p className="text-sm text-gray-500">@{user.username}<p className='text-telegram-header'>{user.telegramId}</p></p>
+                                            <p className="text-sm text-gray-500">@{user.username}<br /><span className='text-telegram-header'>{user.telegramId}</span></p>
                                         </div>
                                         <div className="text-right">
                                             <p className="text-sm">
