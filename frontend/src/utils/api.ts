@@ -1,4 +1,4 @@
-import {retrieveRawInitData } from '@telegram-apps/sdk-react';
+import { retrieveRawInitData } from '@telegram-apps/sdk-react';
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosResponse, AxiosError } from 'axios';
 
 // تعریف تایپ‌های پایه

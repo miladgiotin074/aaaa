@@ -16,6 +16,7 @@ import GatewayReceipt from './models/gatewayReceipt.model.js';
 import { formatJalaliDate } from './utils/dateUtils.js';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import { adminAuthMiddleware } from './middleware/adminAuth.js';
 
 // Connect to MongoDB
 connectDB();
@@ -346,11 +347,11 @@ bot.on('text', async (msg) => {
     }
 });
 
-app.use(express.static(path.join(__dirnameVite, "../frontend/dist")));
+// app.use(express.static(path.join(__dirnameVite, "../frontend/dist")));
 
-app.get("*", (req, res) => {
-    res.sendFile(path.join(__dirnameVite, "../frontend", "index.html"));
-});
+// app.get("*", (req, res) => {
+//     res.sendFile(path.join(__dirnameVite, "../frontend", "index.html"));
+// });
 
 // Start Express server
 app.listen(config.server.port, () => {
@@ -453,5 +454,140 @@ app.get('/zarinpal-callback', async (req, res) => {
         const failedPage = path.join(__dirname, 'views/paymentFailed.html');
         const html = await fs.promises.readFile(failedPage, 'utf8');
         return res.status(500).send(html);
+    }
+});
+
+// Apply admin auth middleware to user management routes
+app.use('/api/admin/users', tgAuthMiddleware, adminAuthMiddleware);
+
+// بعد از سایر endpointها
+app.get('/api/admin/users', async (req, res) => {
+    try {
+        const { search, page = 1, limit = 10 } = req.query;
+
+        const query = {};
+
+        if (search) {
+            query.$or = [
+                { firstName: { $regex: search, $options: 'i' } },
+                { lastName: { $regex: search, $options: 'i' } },
+                { username: { $regex: search, $options: 'i' } },
+            ];
+
+            // اگر search یک عدد است، آن را به telegramId اضافه کنید
+            if (!isNaN(search)) {
+                query.$or.push({ telegramId: Number(search) });
+            }
+        }
+
+        const users = await User.find(query)
+            .skip((page - 1) * limit)
+            .limit(Number(limit));
+
+        const total = await User.countDocuments(query);
+
+        const stats = {
+            totalUsers: await User.countDocuments(),
+            activeUsers: await User.countDocuments({ isBlocked: false }),
+            blockedUsers: await User.countDocuments({ isBlocked: true }),
+            roleDistribution: {
+                admin: await User.countDocuments({ role: 'admin' }),
+                moderator: await User.countDocuments({ role: 'moderator' }),
+                user: await User.countDocuments({ role: 'user' }),
+            },
+        };
+
+        res.json({ users, total, stats });
+    } catch (error) {
+        console.error('Error fetching users:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+
+
+// Get user statistics
+app.get('/api/admin/users/stats', async (req, res) => {
+    try {
+        const stats = {
+            totalUsers: await User.countDocuments(),
+            activeUsers: await User.countDocuments({ isBlocked: false }),
+            blockedUsers: await User.countDocuments({ isBlocked: true }),
+            roleDistribution: {
+                admin: await User.countDocuments({ role: 'admin' }),
+                moderator: await User.countDocuments({ role: 'moderator' }),
+                user: await User.countDocuments({ role: 'user' }),
+            },
+        };
+
+        res.json(stats);
+    } catch (error) {
+        console.error('Error fetching user stats:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// Get user activity history
+app.get('/api/admin/users/:userId/activity', async (req, res) => {
+    try {
+        const { userId } = req.params;
+
+        const user = await User.findById(userId)
+            .select('purchasedAccountsCount totalDeposit totalPurchases lastDepositDate lastPurchaseDate')
+            .populate('purchasedAccounts', 'phone soldAt')
+            .populate('transactions', 'amount date type');
+
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        res.json(user);
+    } catch (error) {
+        console.error('Error fetching user activity:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// Send message to user
+app.post('/api/admin/users/:userId/message', async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const { message } = req.body;
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        const bot = global.telegramBotInstance;
+        await bot.sendMessage(user.telegramId, message);
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Error sending message to user:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+app.put('/api/admin/users/:userId', async (req, res) => {
+    try {
+        console.log(req.body);
+        const { userId } = req.params;
+        const { role, isBlocked, balance, isAuthenticated } = req.body;
+
+        const user = await User.findByIdAndUpdate(
+            userId,
+            { role, isBlocked, balance, isAuthenticated },
+            { new: true }
+        );
+
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        res.json(user);
+    } catch (error) {
+        console.error('Error updating user:', error);
+        res.status(500).json({ error: 'Internal server error' });
     }
 });
