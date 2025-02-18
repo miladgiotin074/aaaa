@@ -1,13 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { api } from '@/utils/api';
 import { LoaderCircle } from 'lucide-react';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import UserSearchFilter from '@/components/admin/UserSearchFilter';
-import UserTable from '@/components/admin/UserTable';
-import Pagination from '@/components/ui/Pagination';
-import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { Users, UserCheck, UserX, UserCog } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import InfiniteScroll from 'react-infinite-scroll-component';
 
 interface User {
     _id: string;
@@ -51,7 +49,7 @@ export default function UsersPage() {
         },
     });
     const [currentPage, setCurrentPage] = useState(1);
-    const [itemsPerPage, setItemsPerPage] = useState(5);
+    const [itemsPerPage] = useState(5);
     const [hasMore, setHasMore] = useState(true);
     const [isFetching, setIsFetching] = useState(false);
     const navigate = useNavigate();
@@ -81,6 +79,28 @@ export default function UsersPage() {
         fetchUsers();
     }, []);
 
+    const handleScroll = useCallback(() => {
+        const { scrollTop, scrollHeight, clientHeight } = document.documentElement;
+        console.log('Scroll position:', scrollTop + clientHeight, scrollHeight);
+
+        // اگر 50px مانده به پایین صفحه بودیم، لود کنیم
+        if (scrollTop + clientHeight >= scrollHeight - 50 && !isFetching && hasMore) {
+            console.log('Loading more users...');
+            setCurrentPage(prev => prev + 1);
+        }
+    }, [isFetching, hasMore]);
+
+    useEffect(() => {
+        window.addEventListener('scroll', handleScroll);
+        return () => window.removeEventListener('scroll', handleScroll);
+    }, [handleScroll]);
+
+    useEffect(() => {
+        if (currentPage > 1) {
+            fetchUsers(currentPage);
+        }
+    }, [currentPage]);
+
     const handleSearch = async (query: string) => {
         try {
             const { data } = await api.get<ApiResponse>('/admin/users', {
@@ -108,53 +128,60 @@ export default function UsersPage() {
 
     return (
         <ErrorBoundary>
-            <div className="mb-28 space-y-4">
+            <div className="space-y-4 h-[100vh] overflow-auto" id="scrollableDiv">
                 <UserStats {...stats} />
-
-                <div>
-
+                <div className=''>
                     <UserSearchFilter onSearch={handleSearch} />
-
-                    <div className="space-y-2 mt-2">
-                        {users.map(user => (
-                            <div
-                                key={user._id}
-                                className="p-4 border rounded-lg shadow-sm cursor-pointer hover:bg-gray-50"
-                                onClick={() => handleRowClick(user)}
-                            >
-                                <div className="flex justify-between items-center">
-                                    <div>
-                                        <p className="font-medium">{user.firstName} {user.lastName}</p>
-                                        <p className="text-sm text-gray-500">@{user.username}<p className='text-telegram-header'>{user.telegramId}</p></p>
-                                    </div>
-                                    <div className="text-right">
-                                        <p className="text-sm">
-                                            {user.role === 'admin' ? 'مدیر' : 
-                                             user.role === 'moderator' ? 'ناظر' : 
-                                             'کاربر'}
-                                        </p>
-                                        <p className={`text-sm ${user.isBlocked ? 'text-red-500' : 'text-green-500'}`}>
-                                            {user.isBlocked ? 'مسدود' : 'فعال'}
-                                        </p>
-                                    </div>
-                                </div>
-                                <div className="mt-2 flex justify-between items-center text-sm">
-                                    <p>موجودی: {user.balance.toLocaleString('fa-IR')}</p>
-                                    <p>تاریخ عضویت: {new Date(user.createdAt).toLocaleDateString('fa-IR')}</p>
-                                </div>
+                    <InfiniteScroll
+                        className='mb-28'
+                        dataLength={users.length}
+                        next={() => setCurrentPage(prev => prev + 1)}
+                        hasMore={hasMore}
+                        loader={
+                            <div className="flex justify-center mt-4">
+                                <LoaderCircle className="w-6 h-6 animate-spin" />
                             </div>
-                        ))}
-                    </div>
+                        }
+                        endMessage={
+                            <p className="text-center text-sm text-gray-500 mt-4">
+                                همه کاربران نمایش داده شدند
+                            </p>
+                        }
+                        scrollableTarget="scrollableDiv"
+                        style={{ overflow: 'hidden' }}
+                    >
+                        <div className="space-y-2 mt-2" style={{ overflow: 'hidden' }}>
+                            {users.map(user => (
+                                <div
+                                    key={user._id}
+                                    className="p-4 border rounded-lg shadow-sm cursor-pointer hover:bg-gray-50"
+                                    onClick={() => handleRowClick(user)}
+                                >
+                                    <div className="flex justify-between items-center">
+                                        <div>
+                                            <p className="font-medium">{user.firstName} {user.lastName}</p>
+                                            <p className="text-sm text-gray-500">@{user.username}<p className='text-telegram-header'>{user.telegramId}</p></p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-sm">
+                                                {user.role === 'admin' ? 'مدیر' :
+                                                    user.role === 'moderator' ? 'ناظر' :
+                                                        'کاربر'}
+                                            </p>
+                                            <p className={`text-sm ${user.isBlocked ? 'text-red-500' : 'text-green-500'}`}>
+                                                {user.isBlocked ? 'مسدود' : 'فعال'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="mt-2 flex justify-between items-center text-sm">
+                                        <p>موجودی: {user.balance.toLocaleString('fa-IR')}</p>
+                                        <p>تاریخ عضویت: {new Date(user.createdAt).toLocaleDateString('fa-IR')}</p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </InfiniteScroll>
                 </div>
-                {isFetching && (
-                    <div className="flex justify-center mt-4">
-                        <LoaderCircle className="w-6 h-6 animate-spin" />
-                    </div>
-                )}
-
-                {!hasMore && !isFetching && (
-                    <p className="text-center text-sm text-gray-500 mt-4">همه کاربران نمایش داده شدند</p>
-                )}
             </div>
         </ErrorBoundary>
     );
@@ -164,7 +191,7 @@ const UserStats = ({ totalUsers, activeUsers, blockedUsers, roleDistribution }: 
     return (
         <div className="space-y-6">
             {/* Combined Stats Card */}
-            <div className="bg-white px-6">
+            <div className="px-6">
                 <div className="grid grid-cols-3 gap-4">
                     {/* Total Users */}
                     <div className="flex flex-col items-center p-4 rounded-lg bg-blue-50">
