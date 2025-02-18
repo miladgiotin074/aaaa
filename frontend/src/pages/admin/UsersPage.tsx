@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '@/utils/api';
-import { LoaderCircle } from 'lucide-react';
+import { LoaderCircle, UserCheck, UserX, UserCog, CheckCircle, XCircle } from 'lucide-react';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import UserSearchFilter from '@/components/admin/UserSearchFilter';
-import { Users, UserCheck, UserX, UserCog } from 'lucide-react';
+import { Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import InfiniteScroll from 'react-infinite-scroll-component';
+import { Chip } from '@mui/material';
 
 interface User {
     _id: string;
@@ -17,6 +18,7 @@ interface User {
     createdAt: string;
     balance: number;
     isBlocked: boolean;
+    isAuthenticated: boolean;
 }
 
 interface ApiResponse {
@@ -128,12 +130,12 @@ export default function UsersPage() {
 
     return (
         <ErrorBoundary>
-            <div className="space-y-4 h-[100vh] overflow-auto" id="scrollableDiv">
+            <div className="h-screen overflow-auto" id="scrollableDiv">
                 <UserStats {...stats} />
-                <div className=''>
+                <div className="pt-4">
                     <UserSearchFilter onSearch={handleSearch} />
                     <InfiniteScroll
-                        className='mb-28'
+                        className="mb-28"
                         dataLength={users.length}
                         next={() => setCurrentPage(prev => prev + 1)}
                         hasMore={hasMore}
@@ -159,7 +161,14 @@ export default function UsersPage() {
                                 >
                                     <div className="flex justify-between items-center">
                                         <div>
-                                            <p className="font-medium">{user.firstName} {user.lastName}</p>
+                                            <div className="flex items-center gap-1">
+                                                <p className="font-medium">{user.firstName} {user.lastName}</p>
+                                                {user.isAuthenticated ? (
+                                                    <span className="text-green-500 text-sm">✅</span>
+                                                ) : (
+                                                    <span className="text-orange-300 text-sm">⚠️</span>
+                                                )}
+                                            </div>
                                             <p className="text-sm text-gray-500">@{user.username}<p className='text-telegram-header'>{user.telegramId}</p></p>
                                         </div>
                                         <div className="text-right">
@@ -189,7 +198,7 @@ export default function UsersPage() {
 
 const UserStats = ({ totalUsers, activeUsers, blockedUsers, roleDistribution }: any) => {
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 pt-4">
             {/* Combined Stats Card */}
             <div className="px-6">
                 <div className="grid grid-cols-3 gap-4">

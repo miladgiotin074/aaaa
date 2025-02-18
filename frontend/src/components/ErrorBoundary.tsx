@@ -22,11 +22,11 @@ class ErrorBoundary extends Component<Props, State> {
     }
 
     public render() {
-        if (this.state.hasError) {
-            return <h1>Something went wrong.</h1>;
-        }
-
-        return this.props.children;
+        return (
+            <div className="h-full">
+                {this.state.hasError ? <h1>Something went wrong.</h1> : this.props.children}
+            </div>
+        );
     }
 }
 

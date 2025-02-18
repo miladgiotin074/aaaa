@@ -481,8 +481,10 @@ app.get('/api/admin/users', async (req, res) => {
         }
 
         const users = await User.find(query)
+            .sort({ createdAt: -1 })
             .skip((page - 1) * limit)
-            .limit(Number(limit));
+            .limit(Number(limit))
+            .select('telegramId firstName lastName username role isBlocked balance isAuthenticated createdAt');
 
         const total = await User.countDocuments(query);
 
@@ -503,8 +505,6 @@ app.get('/api/admin/users', async (req, res) => {
         res.status(500).json({ error: 'Internal server error' });
     }
 });
-
-
 
 // Get user statistics
 app.get('/api/admin/users/stats', async (req, res) => {

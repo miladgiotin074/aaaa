@@ -81,7 +81,7 @@ export default function AdminPage() {
     return (
         <TgPage back={false}>
             <div className="flex flex-col h-screen">
-                <div className="flex-1 py-4 px-2 overflow-y-auto">
+                <div className="flex-1 px-2 overflow-y-auto">
                     {renderContent()}
                 </div>
                 {isAdmin && <AdminBottomNav activeTab={activeTab} setActiveTab={setActiveTab} />}
