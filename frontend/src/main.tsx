@@ -4,8 +4,12 @@ import './index.css'
 import App from './App';
 import { isTMA, postEvent } from '@telegram-apps/bridge';
 import { backButton, init, retrieveLaunchParams } from '@telegram-apps/sdk-react';
+import PaymentSuccessPage from './pages/payment/PaymentSuccessPage';
+import PaymentFailedPage from './pages/payment/PaymentFailedPage';
+import { BrowserRouter as Router } from 'react-router-dom';
 
 try {
+  const isPaymentPage = window.location.pathname.includes('/payment');
   const isTelegramUser = await isTMA();
 
   if (isTelegramUser) {
@@ -33,6 +37,24 @@ try {
     createRoot(document.getElementById('root')!).render(
       <StrictMode>
         <App />
+      </StrictMode>,
+    )
+  } else if (isPaymentPage) {
+    const searchParams = new URLSearchParams(window.location.search);
+    const status = searchParams.get('Status');
+
+    console.log('Search Params:', searchParams.toString());
+    console.log('Payment Status:', status);
+
+    createRoot(document.getElementById('root')!).render(
+      <StrictMode>
+        <Router>
+          {status === 'OK' ? (
+            <PaymentSuccessPage />
+          ) : (
+            <PaymentFailedPage />
+          )}
+        </Router>
       </StrictMode>,
     )
   } else {

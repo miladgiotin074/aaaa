@@ -20,7 +20,6 @@ import { adminAuthMiddleware } from './middleware/adminAuth.js';
 
 // Connect to MongoDB
 connectDB();
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const __dirnameVite = path.resolve();
 
 const app = express();
@@ -133,7 +132,7 @@ bot.on('callback_query', async (query) => {
 
 // Error handler
 bot.on('polling_error', (error) => {
-    logger.error('Polling error:', error);
+    //logger.error('Polling error:', error);
 });
 
 bot.on('webhook_error', (error) => {
@@ -347,11 +346,17 @@ bot.on('text', async (msg) => {
     }
 });
 
-// app.use(express.static(path.join(__dirnameVite, "../frontend/dist")));
+app.use(express.static(path.join(__dirnameVite, "../frontend/dist"), {
+    setHeaders: (res, path) => {
+        if (path.endsWith('.js')) {
+            res.setHeader('Content-Type', 'application/javascript');
+        }
+    }
+}));
 
-// app.get("*", (req, res) => {
-//     res.sendFile(path.join(__dirnameVite, "../frontend", "index.html"));
-// });
+app.get("*", (req, res) => {
+    res.sendFile(path.join(__dirnameVite, "../frontend/dist", "index.html"));
+});
 
 // Start Express server
 app.listen(config.server.port, () => {
@@ -379,33 +384,51 @@ process.on('unhandledRejection', (reason, promise) => {
 
 app.get('/zarinpal-callback', async (req, res) => {
     try {
+        console.log(req.query);
         const { Authority, Status } = req.query;
         const userId = req.query.userId;
 
+        console.log(userId);
+
         if (Status !== 'OK') {
-            // Render failed page
-            const failedPage = path.join(__dirname, 'views/paymentFailed.html');
-            const html = await fs.promises.readFile(failedPage, 'utf8');
-            return res.status(400).send(html);
+            console.log("Status is not OK");
+            // ارسال پیام به کاربر در صورت عدم موفقیت در پرداخت
+            const user = await User.findOne({ telegramId: userId });
+            if (user) {
+                await bot.sendMessage(user.telegramId, config.messages.paymentFailed, {
+                    parse_mode: 'Markdown'
+                });
+            }
+            return res.redirect('/payment/failed');
         }
 
         // Find the payment receipt
         const receipt = await GatewayReceipt.findOne({ authority: Authority });
+        console.log(receipt);
         if (!receipt) {
-            const failedPage = path.join(__dirname, 'views/paymentFailed.html');
-            const html = await fs.promises.readFile(failedPage, 'utf8');
-            return res.status(404).send(html);
+            console.log("Receipt not found");
+            // ارسال پیام به کاربر در صورت عدم یافتن رسید پرداخت
+            const user = await User.findOne({ telegramId: userId });
+            if (user) {
+                await bot.sendMessage(user.telegramId, config.messages.paymentVerificationFailed, {
+                    parse_mode: 'Markdown'
+                });
+            }
+            return res.redirect('/payment/failed');
         }
 
         // Verify the payment
         const verificationResult = await ZarinpalService.verifyPayment(Authority, receipt.amount);
 
+        console.log(verificationResult);
+
         if (verificationResult.success) {
+            console.log("Payment verified");
             // Update user balance
-            await User.findByIdAndUpdate(receipt.userId, {
+            const updatedUser = await User.findByIdAndUpdate(receipt.userId, {
                 $inc: { balance: receipt.amount, totalDeposit: receipt.amount },
                 lastDepositDate: new Date()
-            });
+            }, { new: true });
 
             // Update payment status
             await GatewayReceipt.findByIdAndUpdate(receipt._id, {
@@ -413,47 +436,39 @@ app.get('/zarinpal-callback', async (req, res) => {
                 refID: verificationResult.refID
             });
 
-            // Notify user
-            const bot = global.telegramBotInstance;
-            const config = await getConfig();
-            await bot.sendMessage(
-                userId,
-                config.messages.paymentSuccess
-                    .replace('{refID}', verificationResult.refID)
-                    .replace('{date}', formatJalaliDate(new Date())),
-                { parse_mode: 'Markdown' }
-            );
+            // ارسال پیام موفقیت به کاربر
+            const successMessage = config.messages.paymentSuccess
+                .replace('{refID}', verificationResult.refID)
+                .replace('{date}', formatJalaliDate(new Date()))
+                .replace('{newBalance}', updatedUser.balance.toLocaleString('fa-IR'));
 
-            // Render success page
-            const successPage = path.join(__dirname, 'views/paymentSuccess.html');
-            const html = await fs.promises.readFile(successPage, 'utf8');
-            const renderedHtml = html
-                .replace('{{refID}}', verificationResult.refID)
-                .replace('{{date}}', formatJalaliDate(new Date()));
-            return res.send(renderedHtml);
-        } else {
-            // Update payment status to failed
-            await GatewayReceipt.findByIdAndUpdate(receipt._id, {
-                status: 'failed'
+            await bot.sendMessage(userId, successMessage, {
+                parse_mode: 'Markdown'
             });
 
-            // Notify user
-            const bot = global.telegramBotInstance;
-            await bot.sendMessage(
-                userId,
-                'متاسفانه پرداخت شما تایید نشد. لطفاً با پشتیبانی تماس بگیرید.'
-            );
-
-            // Render failed page
-            const failedPage = path.join(__dirname, 'views/paymentFailed.html');
-            const html = await fs.promises.readFile(failedPage, 'utf8');
-            return res.status(400).send(html);
+            // Redirect to success page
+            return res.redirect(`/payment/success?refID=${verificationResult.refID}&date=${new Date().toISOString()}`);
+        } else {
+            console.log("Payment verification failed By else");
+            // ارسال پیام خطا به کاربر در صورت عدم موفقیت در تایید پرداخت
+            const user = await User.findOne({ telegramId: userId });
+            if (user) {
+                await bot.sendMessage(user.telegramId, config.messages.paymentVerificationFailed, {
+                    parse_mode: 'Markdown'
+                });
+            }
+            return res.redirect('/payment/failed');
         }
     } catch (error) {
         logger.error('Error in ZarinPal callback:', error);
-        const failedPage = path.join(__dirname, 'views/paymentFailed.html');
-        const html = await fs.promises.readFile(failedPage, 'utf8');
-        return res.status(500).send(html);
+        // ارسال پیام خطا به کاربر در صورت بروز خطای کلی
+        const user = await User.findOne({ telegramId: req.query.userId });
+        if (user) {
+            await bot.sendMessage(user.telegramId, config.messages.paymentError, {
+                parse_mode: 'Markdown'
+            });
+        }
+        return res.redirect('/payment/failed');
     }
 });
 
@@ -588,6 +603,86 @@ app.put('/api/admin/users/:userId', async (req, res) => {
         res.json(user);
     } catch (error) {
         console.error('Error updating user:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// بعد از سایر endpointها
+app.get('/api/admin/accounts', async (req, res) => {
+    try {
+        const { search, page = 1, limit = 10 } = req.query;
+
+        const query = {};
+
+        if (search) {
+            query.$or = [
+                { phone: { $regex: search, $options: 'i' } },
+                { isSettled: search.toLowerCase() === 'true' },
+                { isSolded: search.toLowerCase() === 'true' },
+                { cleanSessions: search.toLowerCase() === 'true' }
+            ];
+        }
+
+        const accounts = await Account.find(query)
+            .sort({ addedAt: -1 })
+            .skip((page - 1) * limit)
+            .limit(Number(limit))
+            .populate('soldTo', 'firstName lastName');
+
+        const total = await Account.countDocuments(query);
+
+        const stats = {
+            totalAccounts: await Account.countDocuments(),
+            settledAccounts: await Account.countDocuments({ isSettled: true }),
+            unsoldAccounts: await Account.countDocuments({ isSolded: false }),
+        };
+
+        res.json({ accounts, total, stats });
+    } catch (error) {
+        console.error('Error fetching accounts:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// Get account details
+app.get('/api/admin/accounts/:accountId', async (req, res) => {
+    try {
+        const { accountId } = req.params;
+
+        const account = await Account.findById(accountId)
+            .populate('soldTo', 'firstName lastName')
+            .populate('addedBy', 'firstName lastName');
+
+        if (!account) {
+            return res.status(404).json({ error: 'Account not found' });
+        }
+
+        res.json(account);
+    } catch (error) {
+        console.error('Error fetching account details:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// Update account
+app.put('/api/admin/accounts/:accountId', async (req, res) => {
+    try {
+        const { accountId } = req.params;
+        const { isSettled, cleanSessions } = req.body;
+
+        const account = await Account.findByIdAndUpdate(
+            accountId,
+            { isSettled, cleanSessions },
+            { new: true }
+        );
+
+        if (!account) {
+            return res.status(404).json({ error: 'Account not found' });
+        }
+
+        res.json(account);
+    } catch (error) {
+        console.error('Error updating account:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 });
